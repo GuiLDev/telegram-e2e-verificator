@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "node": "^24.16.0"
+  },
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
   }
 }
