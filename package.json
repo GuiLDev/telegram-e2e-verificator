@@ -4,7 +4,7 @@
   "description": "Backend para recepção de comprovantes Pix via Telegram e validação do código E2E.",
   "main": "src/server.js",
   "scripts": {
-    "dev": "node src/server.js",
+    "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "benchmark": "node src/benchmark.js"
   },
