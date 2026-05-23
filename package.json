@@ -1,11 +1,26 @@
 {
+  "name": "telegram-e2e-verificator",
+  "version": "1.0.1",
+  "description": "Backend para recepção de comprovantes Pix via Telegram e validação do código E2E.",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "benchmark": "node src/benchmark.js"
+  },
+  "keywords": [
+    "telegram",
+    "pix",
+    "e2e",
+    "verificator",
+    "express",
+    "google-vision"
+  ],
+  "author": "Guilherme",
+  "license": "ISC",
   "dependencies": {
     "@google-cloud/vision": "^5.3.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1"
-  },
-  "scripts": {
-    "dev": "node src/server.js",
-    "start": "node src/server.js"
   }
 }
