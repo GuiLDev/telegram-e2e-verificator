@@ -1,6 +1,8 @@
 node_modules/
 .env
 chaves/
-comprovantes-teste/
 resultado-benchmark.json
-.gitignore
+relatorios/
+
+comprovantes-teste/*
+!comprovantes-teste/.gitkeep
