@@ -12,7 +12,7 @@ const CAMINHO_RELATORIO = path.join(PASTA_RELATORIOS, "resultado-benchmark.json"
 // Formato esperado do E2E Pix:
 // E + 8 dígitos do ISPB/banco + 8 dígitos da data + restante alfanumérico
 // Exemplo: E0036030520260522130978144db424d
-const E2E_REGEX = /E\d{8}\d{8}[A-Za-z0-9]{11,16}/g;
+const E2E_REGEX = /[ED]\d{8}\d{8}[A-Za-z0-9]{11,16}/g;
 
 const PALAVRAS_CHAVE_E2E = [
   "e2e",
@@ -163,9 +163,9 @@ function encontrarCandidatosE2E(textoCru) {
 
 function candidatoPareceE2E(candidato) {
   if (!candidato) return false;
-
+  const comecaComEouD = candidato.startsWith("E") || candidato.startsWith("D");
   const tamanhoValido = candidato.length >= 29 && candidato.length <= 33;
-  const formatoPix = /^E\d{8}\d{8}[A-Za-z0-9]+$/.test(candidato);
+  const formatoPix = /^[ED]\d{8}\d{8}[A-Za-z0-9]+$/.test(candidato);
   const temNumeros = /\d/.test(candidato);
   const temLetras = /[A-Za-z]/.test(candidato);
 
@@ -179,14 +179,13 @@ function calcularPontuacaoFormato(candidato) {
     pontos += 8;
   }
 
-  if (/^E\d{8}/.test(candidato)) {
-    pontos += 8;
-  }
+  if (/^[ED]\d{8}/.test(candidato)) {
+  pontos += 8;
+}
 
-  if (/^E\d{8}\d{8}/.test(candidato)) {
-    pontos += 8;
-  }
-
+if (/^[ED]\d{8}\d{8}/.test(candidato)) {
+  pontos += 8;
+}
   return pontos;
 }
 
