@@ -1,3 +1,20 @@
+/*
+  Serviço responsável por extrair o código E2E de um texto bruto.
+
+  Fluxo geral:
+  1. Recebe o texto extraído do comprovante.
+  2. Divide o texto em linhas para evitar juntar campos indevidos.
+  3. Limpa cada linha para facilitar a aplicação da Regex.
+  4. Procura candidatos que seguem o formato de E2E Pix.
+  5. Valida se o candidato parece realmente um E2E.
+  6. Calcula uma pontuação baseada no formato e no contexto.
+  7. Retorna o candidato mais confiável.
+
+  Observação:
+  Este serviço não chama Google Vision, Gemini ou API externa.
+  Ele apenas trabalha com texto e tenta encontrar o melhor E2E possível.
+*/
+
 const E2E_REGEX = /[ED]\d{8}\d{8}[A-Za-z0-9]{11,16}/g;
 
 const PALAVRAS_CHAVE_E2E = [
@@ -41,6 +58,15 @@ function limparLinhaParaRegex(linha) {
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
+/*
+  Quebra o texto em linhas úteis.
+
+  Mantemos:
+  - original: linha como veio do OCR;
+  - limpa: linha preparada para Regex.
+
+  Isso evita juntar o E2E com campos seguintes, como "Instituição".
+*/
 function quebrarTextoEmLinhasUtilizaveis(textoCru) {
   if (!textoCru) return [];
 
@@ -54,6 +80,16 @@ function quebrarTextoEmLinhasUtilizaveis(textoCru) {
     .filter((linha) => linha.limpa);
 }
 
+/*
+  Procura possíveis E2Es.
+
+  Estratégias:
+  1. Buscar na linha atual.
+  2. Buscar juntando linha atual + próxima linha.
+
+  O segundo caso ajuda quando o comprovante quebra o E2E em duas linhas,
+  mas evita juntar o texto inteiro do comprovante.
+*/
 function encontrarCandidatosE2E(textoCru) {
   const linhas = quebrarTextoEmLinhasUtilizaveis(textoCru);
   const candidatos = [];
@@ -100,6 +136,16 @@ function encontrarCandidatosE2E(textoCru) {
   return [...candidatosUnicos.values()];
 }
 
+/*
+  Valida se o candidato tem formato provável de E2E Pix.
+
+  Aceitamos:
+  - E: transação normal;
+  - D: devolução.
+
+  Ainda não valida se o E2E existe no banco.
+  Apenas valida se o formato parece correto.
+*/
 function candidatoPareceE2E(candidato) {
   if (!candidato) return false;
 
@@ -130,6 +176,15 @@ function calcularPontuacaoFormato(candidato) {
   return pontos;
 }
 
+/*
+  Calcula a confiança do candidato.
+
+  A pontuação considera:
+  - palavras próximas ao E2E;
+  - se veio de uma linha única;
+  - se veio da junção de duas linhas;
+  - formato técnico do código.
+*/
 function calcularPontuacaoContexto(textoCru, candidato, metadados) {
   const textoNormalizado = normalizarTexto(textoCru);
   const candidatoNormalizado = normalizarTexto(candidato);
@@ -181,6 +236,19 @@ function calcularPontuacaoContexto(textoCru, candidato, metadados) {
   return pontos;
 }
 
+/*
+  Função principal do serviço.
+
+  Retornos possíveis:
+  - metodo: "contexto"
+    Encontrou candidato com boa pontuação.
+
+  - metodo: "fallback-regex"
+    Encontrou candidato válido, mas com contexto mais fraco.
+
+  - metodo: "nenhum-candidato"
+    Nenhum E2E válido foi encontrado no texto.
+*/
 function extrairE2E(textoCru) {
   const candidatos = encontrarCandidatosE2E(textoCru)
     .filter((candidato) => candidatoPareceE2E(candidato.valor))

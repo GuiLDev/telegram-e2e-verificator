@@ -1,3 +1,19 @@
+/*
+  Benchmark local para testar a extração de E2E em imagens de comprovantes Pix.
+
+  Fluxo geral:
+  1. Lista imagens locais da pasta comprovantes-teste/.
+  2. Envia cada imagem para o Google Cloud Vision.
+  3. Recebe o texto bruto extraído por OCR.
+  4. Usa o e2e-extractor.service para localizar o melhor E2E.
+  5. Salva o texto extraído de cada imagem.
+  6. Gera um relatório JSON com acertos, falhas, candidatos e método usado.
+
+  Observação:
+  Este arquivo é apenas para teste em lote/local.
+  Ele não representa o fluxo final do Telegram em produção.
+*/
+
 require("dotenv").config();
 
 const path = require("path");
@@ -15,6 +31,16 @@ const {
   salvarRelatorioBenchmark
 } = require("./services/report.service");
 
+/*
+  Processa uma imagem individual usando Google Vision + extrator de E2E.
+
+  Retorna um objeto padronizado com:
+  - texto bruto extraído;
+  - E2E encontrado, se houver;
+  - método de extração;
+  - candidatos encontrados;
+  - erro, se acontecer.
+*/
 async function testarGoogleVision(googleClient, caminhoImagem) {
   try {
     const textoCru = await extrairTextoDaImagem(googleClient, caminhoImagem);
@@ -38,6 +64,18 @@ async function testarGoogleVision(googleClient, caminhoImagem) {
   }
 }
 
+/*
+  Executa o benchmark completo.
+
+  Essa função:
+  - prepara as pastas de relatório;
+  - cria o cliente Google Vision;
+  - lista as imagens;
+  - processa uma por uma;
+  - contabiliza acertos e falhas;
+  - salva textos extraídos;
+  - gera o resultado-benchmark.json.
+*/
 async function rodarBenchmark() {
   garantirPastasRelatorio();
 
@@ -138,6 +176,12 @@ async function rodarBenchmark() {
   }
 }
 
+/*
+  Inicializa o benchmark e captura erros globais.
+
+  Se algo falhar fora do fluxo individual das imagens,
+  o processo é encerrado com código 1.
+*/
 rodarBenchmark().catch((error) => {
   console.error("");
   console.error("Erro ao rodar benchmark:");
