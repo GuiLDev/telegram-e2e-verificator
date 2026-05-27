@@ -15,7 +15,7 @@
   Ele apenas trabalha com texto e tenta encontrar o melhor E2E possível.
 */
 
-const E2E_REGEX = /[ED]\d{8}\d{8}[A-Za-z0-9]{11,16}/g;
+const E2E_REGEX = /[ED]\d{8}\d{8}[A-Za-z0-9]{15}/g;
 
 const PALAVRAS_CHAVE_E2E = [
   "e2e",
@@ -150,7 +150,7 @@ function candidatoPareceE2E(candidato) {
   if (!candidato) return false;
 
   const comecaComEouD = candidato.startsWith("E") || candidato.startsWith("D");
-  const tamanhoValido = candidato.length >= 29 && candidato.length <= 33;
+  const tamanhoValido = candidato.length === 32;
   const formatoPix = /^[ED]\d{8}\d{8}[A-Za-z0-9]+$/.test(candidato);
   const temNumeros = /\d/.test(candidato);
   const temLetras = /[A-Za-z]/.test(candidato);
@@ -161,9 +161,9 @@ function candidatoPareceE2E(candidato) {
 function calcularPontuacaoFormato(candidato) {
   let pontos = 0;
 
-  if (candidato.length >= 29 && candidato.length <= 33) {
-    pontos += 8;
-  }
+  if (candidato.length === 32) {
+  pontos += 8;
+}
 
   if (/^[ED]\d{8}/.test(candidato)) {
     pontos += 8;
