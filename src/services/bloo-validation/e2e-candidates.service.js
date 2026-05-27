@@ -17,6 +17,10 @@
      - casos onde o OCR mistura o botão "Copiar" com o E2E;
      - casos onde o último caractere do E2E aparece sozinho na linha de baixo.
 
+  3. Recuperação por maiúscula/minúscula:
+     - casos onde o OCR lê "X" mas o correto é "x";
+     - ou lê "x" mas o correto é "X".
+
   Importante:
   Este serviço NÃO decide qual E2E está correto.
   Ele apenas gera possibilidades.
@@ -32,13 +36,6 @@ const LIMITE_MAXIMO_CARACTERES_AMBIGUOS = 5;
 const E2E_EXATO_REGEX = /^[ED]\d{8}\d{8}[A-Za-z0-9]{15}$/;
 const E2E_EXATO_GLOBAL_REGEX = /[ED]\d{8}\d{8}[A-Za-z0-9]{15}/g;
 
-/*
-  Mapa direcional de ambiguidades.
-
-  Exemplo:
-  Se o OCR leu "o", testamos também "0" e "O".
-  Se o OCR leu "S", testamos também "5", "s" e "6".
-*/
 const MAPA_AMBIGUIDADES = {
   "0": ["0", "o", "O"],
   o: ["o", "0", "O"],
@@ -63,13 +60,31 @@ function candidatoTemFormatoE2E(candidato) {
   return typeof candidato === "string" && E2E_EXATO_REGEX.test(candidato);
 }
 
-function adicionarCandidato(lista, candidato) {
+function limiteDeCandidatosAtingido(candidatos) {
+  return candidatos.length >= LIMITE_MAXIMO_CANDIDATOS;
+}
+
+function adicionarCandidato(candidatos, candidato) {
+  if (limiteDeCandidatosAtingido(candidatos)) {
+    return;
+  }
+
   if (!candidatoTemFormatoE2E(candidato)) {
     return;
   }
 
-  if (!lista.includes(candidato)) {
-    lista.push(candidato);
+  if (!candidatos.includes(candidato)) {
+    candidatos.push(candidato);
+  }
+}
+
+function adicionarCandidatos(candidatos, novosCandidatos) {
+  for (const candidato of novosCandidatos) {
+    adicionarCandidato(candidatos, candidato);
+
+    if (limiteDeCandidatosAtingido(candidatos)) {
+      break;
+    }
   }
 }
 
@@ -93,6 +108,18 @@ function removerRuidosDeAcao(linhaLimpa) {
 
 function obterVariacoesDoCaractere(caractere) {
   return MAPA_AMBIGUIDADES[caractere] || [caractere];
+}
+
+function caractereEhLetra(caractere) {
+  return /^[A-Za-z]$/.test(caractere);
+}
+
+function inverterCase(caractere) {
+  if (caractere === caractere.toUpperCase()) {
+    return caractere.toLowerCase();
+  }
+
+  return caractere.toUpperCase();
 }
 
 /*
@@ -126,8 +153,13 @@ function encontrarPosicoesAmbiguas(e2e) {
 /*
   Gera candidatos por troca de caracteres ambíguos.
 
-  Se houver ambiguidade demais, usamos apenas as últimas posições ambíguas,
-  porque erros visuais no final do E2E são muito comuns em prints cortados.
+  Exemplo:
+  OCR:
+  E00416968202605262046tXxHSG7Giho
+
+  Pode gerar:
+  E00416968202605262046tXxHSG7GihO
+  E00416968202605262046tXxHSG7Gih0
 */
 function gerarCandidatosPorAmbiguidade(e2e) {
   if (!candidatoTemFormatoE2E(e2e)) {
@@ -167,6 +199,45 @@ function gerarCandidatosPorAmbiguidade(e2e) {
   }
 
   return candidatos.filter(candidatoTemFormatoE2E);
+}
+
+/*
+  Gera candidatos trocando maiúscula/minúscula de UMA letra por vez.
+
+  Isso evita explosão de combinações.
+
+  Exemplo:
+  OCR:
+  E22896431202605271325HXJFZS1mz2n
+
+  Pode gerar:
+  E22896431202605271325hXJFZS1mz2n
+  E22896431202605271325HxJFZS1mz2n
+  E22896431202605271325HXjFZS1mz2n
+
+  O candidato só será aceito se a Bloo confirmar.
+*/
+function gerarCandidatosPorTrocaDeCase(e2e) {
+  const candidatos = [];
+
+  if (!candidatoTemFormatoE2E(e2e)) {
+    return candidatos;
+  }
+
+  for (let index = INDICE_INICIO_SUFIXO_E2E; index < e2e.length; index++) {
+    const caractere = e2e[index];
+
+    if (!caractereEhLetra(caractere)) {
+      continue;
+    }
+
+    const caracteres = e2e.split("");
+    caracteres[index] = inverterCase(caractere);
+
+    adicionarCandidato(candidatos, caracteres.join(""));
+  }
+
+  return candidatos;
 }
 
 /*
@@ -222,12 +293,6 @@ function gerarCandidatosEstruturaisPorTexto(e2e, textoOCR) {
       continue;
     }
 
-    /*
-      Olhamos até duas linhas abaixo.
-
-      Isso cobre casos onde o último caractere ficou sozinho
-      ou onde o OCR separou a continuação por quebra de linha.
-    */
     for (let offset = 1; offset <= 2; offset++) {
       const proximaLinha = linhas[index + offset];
 
@@ -241,10 +306,6 @@ function gerarCandidatosEstruturaisPorTexto(e2e, textoOCR) {
         continue;
       }
 
-      /*
-        Estratégia 1:
-        Remove "Copiar" da linha e junta com o complemento da linha seguinte.
-      */
       const combinadoSemRuido = `${linhaSemRuido}${complemento}`;
       const encontrados = combinadoSemRuido.match(E2E_EXATO_GLOBAL_REGEX) || [];
 
@@ -252,11 +313,6 @@ function gerarCandidatosEstruturaisPorTexto(e2e, textoOCR) {
         adicionarCandidato(candidatos, encontrado);
       }
 
-      /*
-        Estratégia 2:
-        Se o OCR capturou 32 caracteres, mas o último veio do "Copiar",
-        substituímos os últimos caracteres pelo complemento da linha seguinte.
-      */
       if (e2eNormalizado.length === TAMANHO_E2E) {
         const candidatoPorSubstituicao =
           e2eNormalizado.slice(0, TAMANHO_E2E - complemento.length) +
@@ -273,10 +329,11 @@ function gerarCandidatosEstruturaisPorTexto(e2e, textoOCR) {
 /*
   Função principal.
 
-  Retorna:
-  1. E2E original primeiro;
-  2. candidatos estruturais;
-  3. candidatos por ambiguidade visual.
+  Ordem dos candidatos:
+  1. E2E original.
+  2. Candidatos estruturais.
+  3. Candidatos por troca de maiúscula/minúscula.
+  4. Candidatos por ambiguidade visual.
 
   A Bloo decide qual deles é válido.
 */
@@ -300,25 +357,25 @@ function gerarCandidatosE2E(e2e, opcoes = {}) {
     opcoes.textoOCR
   );
 
-  for (const candidato of candidatosEstruturais) {
-    adicionarCandidato(candidatos, candidato);
+  adicionarCandidatos(candidatos, candidatosEstruturais);
+
+  const basesParaCase = [...candidatos];
+
+  for (const base of basesParaCase) {
+    adicionarCandidatos(candidatos, gerarCandidatosPorTrocaDeCase(base));
+
+    if (limiteDeCandidatosAtingido(candidatos)) {
+      return candidatos;
+    }
   }
 
-  /*
-    Também geramos variações ambíguas para o original
-    e para os candidatos estruturais.
-  */
   const basesParaAmbiguidade = [...candidatos];
 
   for (const base of basesParaAmbiguidade) {
-    const variacoes = gerarCandidatosPorAmbiguidade(base);
+    adicionarCandidatos(candidatos, gerarCandidatosPorAmbiguidade(base));
 
-    for (const variacao of variacoes) {
-      adicionarCandidato(candidatos, variacao);
-
-      if (candidatos.length >= LIMITE_MAXIMO_CANDIDATOS) {
-        return candidatos;
-      }
+    if (limiteDeCandidatosAtingido(candidatos)) {
+      return candidatos;
     }
   }
 
@@ -328,5 +385,6 @@ function gerarCandidatosE2E(e2e, opcoes = {}) {
 module.exports = {
   gerarCandidatosE2E,
   encontrarPosicoesAmbiguas,
-  gerarCandidatosEstruturaisPorTexto
+  gerarCandidatosEstruturaisPorTexto,
+  gerarCandidatosPorTrocaDeCase
 };
