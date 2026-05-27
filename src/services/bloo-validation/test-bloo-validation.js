@@ -16,6 +16,10 @@ const {
   validarE2EComCandidatosNaBloo
 } = require("./bloo-e2e-validation.service");
 
+const {
+  mapearRespostaBlooParaResumo
+} = require("./bloo-response-mapper.service");
+
 async function main() {
   const e2e = process.argv[2];
 
@@ -33,9 +37,28 @@ async function main() {
   console.log("");
 
   const resultado = await validarE2EComCandidatosNaBloo(e2e);
+  const resumo = mapearRespostaBlooParaResumo(resultado);
 
-  console.log("Resultado:");
-  console.log(JSON.stringify(resultado, null, 2));
+  console.log("Resumo:");
+  console.log(JSON.stringify(resumo, null, 2));
+
+  console.log("");
+  console.log("Validação:");
+  console.log(
+    JSON.stringify(
+      {
+        status: resultado.status,
+        encontrado: resultado.encontrado,
+        metodo: resultado.metodo,
+        e2eOriginal: resultado.e2eOriginal,
+        e2eValidado: resultado.e2eValidado,
+        candidatosTestados: resultado.candidatosTestados?.length || 0,
+        resultadosEncontrados: resultado.resultadosEncontrados?.length || 0
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((error) => {
