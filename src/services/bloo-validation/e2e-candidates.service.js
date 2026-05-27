@@ -5,18 +5,17 @@
   Quando a API da Bloo não encontra o E2E extraído pelo OCR/Gemini,
   este serviço gera candidatos alternativos trocando caracteres ambíguos.
 
-  Exemplos de ambiguidades:
-  - 0, o, O
-  - 1, l, I
-
   Importante:
-  Este serviço NÃO decide qual E2E está correto.
-  Ele apenas gera possibilidades.
+  A geração de candidatos acontece apenas no sufixo alfanumérico do E2E.
 
-  A decisão final deve vir da API da Bloo:
-  - se uma variação bater na API, ela pode ser considerada válida;
-  - se nenhuma bater, seguimos para fallback;
-  - se mais de uma bater, precisa de revisão.
+  Estrutura considerada:
+  - posição 0: E ou D
+  - posições 1 até 16: parte numérica fixa
+  - posição 17 em diante: sufixo alfanumérico
+
+  Motivo:
+  A parte numérica inicial costuma ter muitos 0 e 1.
+  Se gerarmos variações nela, criamos combinações demais e falsos positivos.
 */
 
 const GRUPOS_AMBIGUOS = [
@@ -24,6 +23,7 @@ const GRUPOS_AMBIGUOS = [
   ["1", "l", "I"]
 ];
 
+const INDICE_INICIO_SUFIXO_E2E = 17;
 const LIMITE_MAXIMO_CANDIDATOS = 64;
 const LIMITE_MAXIMO_CARACTERES_AMBIGUOS = 5;
 
@@ -41,10 +41,22 @@ function obterVariacoesDoCaractere(caractere) {
   return grupo;
 }
 
+/*
+  Encontra posições ambíguas apenas no sufixo alfanumérico.
+
+  Exemplo:
+  E00416968202605262046tXxHSG7Giho
+
+  Parte fixa:
+  E0041696820260526
+
+  Parte analisada:
+  2046tXxHSG7Giho
+*/
 function encontrarPosicoesAmbiguas(e2e) {
   const posicoes = [];
 
-  for (let index = 0; index < e2e.length; index++) {
+  for (let index = INDICE_INICIO_SUFIXO_E2E; index < e2e.length; index++) {
     const caractere = e2e[index];
     const grupo = encontrarGrupoAmbiguo(caractere);
 
@@ -63,16 +75,17 @@ function encontrarPosicoesAmbiguas(e2e) {
 /*
   Gera combinações controladas do E2E.
 
+  Sempre inclui o E2E original como primeiro candidato.
+
   Exemplo:
-  E...x00H
+  OCR:
+  E00416968202605262046tXxHSG7Giho
 
   Pode gerar:
-  E...x00H
-  E...xo0H
-  E...x0oH
-  E...xooH
-
-  Sempre inclui o E2E original como primeiro candidato.
+  E00416968202605262046tXxHSG7Giho
+  E00416968202605262046tXxHSG7GihO
+  E00416968202605262046tXxHSG7Gih0
+  ...
 */
 function gerarCandidatosE2E(e2e) {
   if (typeof e2e !== "string" || !e2e.trim()) {
@@ -80,17 +93,17 @@ function gerarCandidatosE2E(e2e) {
   }
 
   const e2eNormalizado = e2e.trim();
+
+  if (e2eNormalizado.length <= INDICE_INICIO_SUFIXO_E2E) {
+    return [e2eNormalizado];
+  }
+
   const posicoesAmbiguas = encontrarPosicoesAmbiguas(e2eNormalizado);
 
   if (!posicoesAmbiguas.length) {
     return [e2eNormalizado];
   }
 
-  /*
-    Limite de segurança:
-    Se houver ambiguidade demais, gerar todas as combinações pode explodir
-    rapidamente. Nesse caso, retornamos só o original.
-  */
   if (posicoesAmbiguas.length > LIMITE_MAXIMO_CARACTERES_AMBIGUOS) {
     return [e2eNormalizado];
   }
@@ -117,9 +130,6 @@ function gerarCandidatosE2E(e2e) {
     }
   }
 
-  /*
-    Garante que o E2E original fique sempre em primeiro lugar.
-  */
   const candidatosSemOriginal = candidatos.filter(
     (candidato) => candidato !== e2eNormalizado
   );
