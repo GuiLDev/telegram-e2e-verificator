@@ -47,7 +47,7 @@ const BLOO_E2E_VALIDATION_STATUS = {
   - candidatosTestados;
   - resultadosEncontrados.
 */
-async function validarE2EComCandidatosNaBloo(e2e) {
+async function validarE2EComCandidatosNaBloo(e2e, opcoes = {}) {
   /*
     1. Consulta original
 
@@ -124,9 +124,9 @@ async function validarE2EComCandidatosNaBloo(e2e) {
 
     Removemos o próprio E2E original para não consultar duas vezes.
   */
-  const candidatos = gerarCandidatosE2E(e2e).filter(
-    (candidato) => candidato !== resultadoOriginal.e2e
-  );
+  const candidatos = gerarCandidatosE2E(e2e, {
+  textoOCR: opcoes.textoOCR
+}).filter((candidato) => candidato !== resultadoOriginal.e2e);
 
   const candidatosTestados = [];
   const resultadosEncontrados = [];
