@@ -7,7 +7,8 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "benchmark": "node src/benchmark.js",
-    "test:bloo": "node src/services/bloo-validation/test-bloo-validation.js"
+    "test:bloo": "node src/services/bloo-validation/test-bloo-validation.js",
+    "benchmark:gemini": "node src/services/gemini/gemini-extractor.service"
   },
   "keywords": [
     "telegram",
@@ -21,6 +22,7 @@
   "license": "ISC",
   "dependencies": {
     "@google-cloud/vision": "^5.3.6",
+    "@google/genai": "^2.6.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1"
   }
