@@ -7,6 +7,7 @@
   3. Enviar a imagem para a Gemini API.
   4. Pedir que o modelo retorne somente JSON.
   5. Normalizar a resposta em um objeto JavaScript.
+  6. Tratar rate limit, quota e alta demanda com retry automático.
 
   Observação:
   Este serviço não usa Google Vision.
@@ -18,8 +19,24 @@ const path = require("path");
 
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
+function obterNumeroEnv(nome, valorPadrao) {
+  const valor = Number(process.env[nome]);
+
+  if (!Number.isFinite(valor)) {
+    return valorPadrao;
+  }
+
+  return valor;
+}
+
+const GEMINI_RETRY_CONFIG = {
+  maxTentativas: obterNumeroEnv("GEMINI_MAX_TENTATIVAS", 4),
+  delayInicialMs: obterNumeroEnv("GEMINI_RETRY_DELAY_INICIAL_MS", 3000),
+  fatorBackoff: obterNumeroEnv("GEMINI_RETRY_FATOR_BACKOFF", 2)
+};
+
 function obterModeloGemini() {
-  return process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  return process.env.GEMINI_MODEL || "gemini-2.5-flash";
 }
 
 function obterGeminiApiKey() {
@@ -49,6 +66,135 @@ function imagemParaBase64(caminhoImagem) {
   return fs.readFileSync(caminhoImagem).toString("base64");
 }
 
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extrairRetryDelayMs(mensagemErro) {
+  const mensagem = String(mensagemErro || "");
+
+  const match = mensagem.match(/retry in ([\d.]+)s/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const segundos = Number(match[1]);
+
+  if (!Number.isFinite(segundos)) {
+    return null;
+  }
+
+  return Math.ceil(segundos * 1000);
+}
+
+function erroGeminiPermiteRetry(status, mensagemErro) {
+  const mensagem = String(mensagemErro || "").toLowerCase();
+
+  const statusComRetry = [429, 500, 502, 503, 504].includes(status);
+
+  const mensagemComRetry =
+    mensagem.includes("high demand") ||
+    mensagem.includes("try again later") ||
+    mensagem.includes("temporarily unavailable") ||
+    mensagem.includes("unavailable") ||
+    mensagem.includes("rate limit") ||
+    mensagem.includes("quota exceeded") ||
+    mensagem.includes("quota");
+
+  return statusComRetry || mensagemComRetry;
+}
+
+function calcularDelayTentativa(tentativa, mensagemErro) {
+  const delaySugeridoPelaAPI = extrairRetryDelayMs(mensagemErro);
+
+  if (delaySugeridoPelaAPI) {
+    return delaySugeridoPelaAPI + 1000;
+  }
+
+  const delayBase =
+    GEMINI_RETRY_CONFIG.delayInicialMs *
+    Math.pow(GEMINI_RETRY_CONFIG.fatorBackoff, tentativa - 1);
+
+  const jitter = Math.floor(Math.random() * 500);
+
+  return delayBase + jitter;
+}
+
+async function lerRespostaJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+/*
+  Chama a Gemini API com retry automático.
+
+  Faz nova tentativa quando:
+  - bate rate limit;
+  - bate quota temporária;
+  - modelo está em alta demanda;
+  - API retorna erro temporário 5xx.
+
+  Quando a própria API informa "Please retry in Xs",
+  respeitamos esse tempo antes da próxima tentativa.
+*/
+async function chamarGeminiComRetry(url, apiKey, body) {
+  let ultimoErro = null;
+
+  for (
+    let tentativa = 1;
+    tentativa <= GEMINI_RETRY_CONFIG.maxTentativas;
+    tentativa++
+  ) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await lerRespostaJson(response);
+
+    if (response.ok) {
+      return data;
+    }
+
+    const mensagemErro =
+      data?.error?.message || `Erro HTTP ${response.status} na Gemini API`;
+
+    ultimoErro = new Error(mensagemErro);
+
+    const deveTentarNovamente = erroGeminiPermiteRetry(
+      response.status,
+      mensagemErro
+    );
+
+    if (
+      !deveTentarNovamente ||
+      tentativa === GEMINI_RETRY_CONFIG.maxTentativas
+    ) {
+      throw ultimoErro;
+    }
+
+    const delay = calcularDelayTentativa(tentativa, mensagemErro);
+
+    console.log(
+      `  [GEMINI RETRY] Tentativa ${tentativa}/${GEMINI_RETRY_CONFIG.maxTentativas} falhou`
+    );
+    console.log(`  [GEMINI RETRY] Motivo: ${mensagemErro}`);
+    console.log(`  [GEMINI RETRY] Tentando novamente em ${delay}ms...`);
+
+    await esperar(delay);
+  }
+
+  throw ultimoErro || new Error("Erro desconhecido na Gemini API");
+}
+
 function criarPromptExtracaoPix() {
   return `
 Você é um extrator de dados de comprovantes Pix brasileiros.
@@ -66,7 +212,7 @@ Regras importantes:
 - Preserve números e letras exatamente.
 - Não corrija caracteres por suposição.
 - Se houver dúvida visual entre 0/o/O, 1/l/I, 5/S/s, 6/S/s/G, 8/B, informe em caracteresAmbiguos.
-- O E2E deve ter 32 caracteres.
+- O E2E deve ter exatamente 32 caracteres.
 - O E2E geralmente começa com E ou D.
 - Se não encontrar E2E, use null.
 - Se encontrar valor, retorne amountCentavos como número inteiro em centavos.
@@ -201,23 +347,7 @@ async function extrairDadosComprovanteComGemini(caminhoImagem) {
     }
   };
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey
-    },
-    body: JSON.stringify(body)
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    const mensagemErro =
-      data?.error?.message || `Erro HTTP ${response.status} na Gemini API`;
-
-    throw new Error(mensagemErro);
-  }
+  const data = await chamarGeminiComRetry(url, apiKey, body);
 
   const textoResposta = extrairTextoRespostaGemini(data);
   const json = parsearJsonGemini(textoResposta);

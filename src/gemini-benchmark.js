@@ -41,6 +41,36 @@ const {
   mapearRespostaBlooParaResumo
 } = require("./services/bloo-validation/bloo-response-mapper.service");
 
+function obterNumeroEnv(nome, valorPadrao) {
+  const valor = Number(process.env[nome]);
+
+  if (!Number.isFinite(valor)) {
+    return valorPadrao;
+  }
+
+  return valor;
+}
+
+const GEMINI_DELAY_ENTRE_IMAGENS_MS = obterNumeroEnv(
+  "GEMINI_DELAY_ENTRE_IMAGENS_MS",
+  4000
+);
+
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/*
+  Monta um texto auxiliar para o gerador de candidatos.
+
+  No fluxo Google Vision, usamos o texto bruto do OCR.
+
+  No fluxo Gemini, usamos:
+  - o E2E retornado;
+  - as linhas relevantes que o Gemini conseguiu identificar.
+
+  Isso ajuda no candidate recovery estrutural.
+*/
 function montarTextoParaCandidatosGemini(dadosGemini) {
   const linhas = [];
 
@@ -78,6 +108,8 @@ async function rodarGeminiBenchmark() {
   const arquivos = listarImagens();
 
   console.log(`Pasta de imagens: ${PASTA_IMAGENS}`);
+  console.log(`Modelo Gemini: ${process.env.GEMINI_MODEL || "gemini-2.5-flash"}`);
+  console.log(`Delay entre imagens: ${GEMINI_DELAY_ENTRE_IMAGENS_MS}ms`);
   console.log(`Iniciando benchmark Gemini em ${arquivos.length} imagens...`);
   console.log("");
 
@@ -98,7 +130,8 @@ async function rodarGeminiBenchmark() {
 
   const resultados = [];
 
-  for (const arquivo of arquivos) {
+  for (let index = 0; index < arquivos.length; index++) {
+    const arquivo = arquivos[index];
     const caminhoCompleto = path.join(PASTA_IMAGENS, arquivo);
 
     console.log(`Processando: ${arquivo}`);
@@ -210,6 +243,17 @@ async function rodarGeminiBenchmark() {
         : null
     });
 
+    if (
+      index < arquivos.length - 1 &&
+      GEMINI_DELAY_ENTRE_IMAGENS_MS > 0
+    ) {
+      console.log(
+        `Aguardando ${GEMINI_DELAY_ENTRE_IMAGENS_MS}ms antes da próxima imagem...`
+      );
+
+      await esperar(GEMINI_DELAY_ENTRE_IMAGENS_MS);
+    }
+
     console.log("");
   }
 
@@ -230,7 +274,7 @@ async function rodarGeminiBenchmark() {
 
   const relatorio = {
     servicoExtracao: "Gemini",
-    modelo: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    modelo: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     servicoValidacao: "Bloo API",
     geradoEm: new Date().toISOString(),
 
@@ -311,6 +355,15 @@ async function rodarGeminiBenchmark() {
 
     for (const item of errosGemini) {
       console.log(`- ${item.arquivo} | ${item.erro}`);
+    }
+  }
+
+  if (errosAPI.length > 0) {
+    console.log("");
+    console.log("Erros API:");
+
+    for (const item of errosAPI) {
+      console.log(`- ${item.arquivo} | ${item.e2eGemini} | ${item.status}`);
     }
   }
 
