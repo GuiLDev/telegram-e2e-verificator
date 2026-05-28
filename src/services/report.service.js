@@ -53,25 +53,27 @@ function salvarTextoExtraido(arquivo, textoCru) {
 }
 
 /*
-  Salva o relatório final do benchmark em JSON.
+  Função genérica para salvar qualquer relatório em JSON.
 
-  O relatório contém:
-  - total de imagens processadas;
-  - acertos;
-  - falhas;
-  - taxa de acerto;
-  - método de extração;
-  - candidatos encontrados;
-  - erros, se existirem.
+  Usamos isso tanto para o benchmark do Google Vision quanto
+  para o benchmark do Gemini.
+*/
+function salvarRelatorioEmArquivo(caminhoRelatorio, relatorio) {
+  fs.writeFileSync(caminhoRelatorio, JSON.stringify(relatorio, null, 2), "utf8");
+
+  return caminhoRelatorio;
+}
+
+/*
+  Salva o relatório final do benchmark Google Vision em JSON.
 */
 function salvarRelatorioBenchmark(relatorio) {
-  fs.writeFileSync(CAMINHO_RELATORIO, JSON.stringify(relatorio, null, 2), "utf8");
-
-  return CAMINHO_RELATORIO;
+  return salvarRelatorioEmArquivo(CAMINHO_RELATORIO, relatorio);
 }
 
 module.exports = {
   garantirPastasRelatorio,
   salvarTextoExtraido,
-  salvarRelatorioBenchmark
+  salvarRelatorioBenchmark,
+  salvarRelatorioEmArquivo
 };
