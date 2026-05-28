@@ -25,23 +25,26 @@ const PASTA_RELATORIOS = path.join(__dirname, "..", "..", "relatorios");
 const PASTA_TEXTOS_EXTRAIDOS = path.join(PASTA_RELATORIOS, "textos-extraidos");
 
 /*
-  Caminho do arquivo JSON final do benchmark.
-
-  Esse arquivo guarda:
-  - total de imagens;
-  - acertos;
-  - falhas;
-  - taxa de acerto;
-  - E2E encontrado;
-  - método usado;
-  - candidatos encontrados;
-  - erros, se existirem.
+  Caminho do arquivo JSON final do benchmark atual com Google Vision.
 */
 const CAMINHO_RELATORIO = path.join(PASTA_RELATORIOS, "resultado-benchmark.json");
+
+/*
+  Caminho do arquivo JSON final do benchmark usando somente Gemini.
+
+  Esse relatório é separado para conseguirmos comparar:
+  - Google Vision + Regex + Bloo
+  - Gemini + JSON + Bloo
+*/
+const CAMINHO_RELATORIO_GEMINI = path.join(
+  PASTA_RELATORIOS,
+  "resultado-gemini-benchmark.json"
+);
 
 module.exports = {
   PASTA_IMAGENS,
   PASTA_RELATORIOS,
   PASTA_TEXTOS_EXTRAIDOS,
-  CAMINHO_RELATORIO
+  CAMINHO_RELATORIO,
+  CAMINHO_RELATORIO_GEMINI
 };
