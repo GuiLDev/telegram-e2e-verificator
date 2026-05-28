@@ -7,8 +7,9 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "benchmark": "node src/benchmark.js",
-    "test:bloo": "node src/services/bloo-validation/test-bloo-validation.js",
-    "benchmark:gemini": "node src/services/gemini/gemini-extractor.service"
+    "benchmark:gemini": "node src/gemini-benchmark.js",
+    "test:bloo": "node src/services/bloo-validation/test-bloo-validation.js"
+    
   },
   "keywords": [
     "telegram",
