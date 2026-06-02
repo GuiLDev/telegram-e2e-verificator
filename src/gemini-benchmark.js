@@ -38,7 +38,8 @@ const {
 } = require("./services/bloo-validation/bloo-e2e-validation.service");
 
 const {
-  mapearRespostaBlooParaResumo
+  mapearRespostaBlooParaResumo,
+  formatarOrderSummaryTerminal
 } = require("./services/bloo-validation/bloo-response-mapper.service");
 
 function obterNumeroEnv(nome, valorPadrao) {
@@ -207,6 +208,13 @@ async function rodarGeminiBenchmark() {
 
           console.log(`  [BLOO ERRO] Status: ${resultadoBloo.status}`);
         }
+
+        const orderSummary = formatarOrderSummaryTerminal(resumoBloo);
+
+        if (orderSummary) {
+          console.log("");
+          console.log(orderSummary);
+        }
       }
     } catch (error) {
       totalErrosGemini++;
@@ -243,10 +251,7 @@ async function rodarGeminiBenchmark() {
         : null
     });
 
-    if (
-      index < arquivos.length - 1 &&
-      GEMINI_DELAY_ENTRE_IMAGENS_MS > 0
-    ) {
+    if (index < arquivos.length - 1 && GEMINI_DELAY_ENTRE_IMAGENS_MS > 0) {
       console.log(
         `Aguardando ${GEMINI_DELAY_ENTRE_IMAGENS_MS}ms antes da próxima imagem...`
       );
