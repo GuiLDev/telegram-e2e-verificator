@@ -45,7 +45,8 @@ const {
 } = require("./services/bloo-validation/bloo-e2e-validation.service");
 
 const {
-  mapearRespostaBlooParaResumo
+  mapearRespostaBlooParaResumo,
+  formatarOrderSummaryTerminal
 } = require("./services/bloo-validation/bloo-response-mapper.service");
 
 /*
@@ -100,8 +101,9 @@ async function testarGoogleVision(googleClient, caminhoImagem) {
 */
 async function validarE2ENaBloo(e2e, textoOCR) {
   const validacao = await validarE2EComCandidatosNaBloo(e2e, {
-  textoOCR
-});
+    textoOCR
+  });
+
   const resumo = mapearRespostaBlooParaResumo(validacao);
 
   return {
@@ -179,7 +181,7 @@ async function rodarBenchmark() {
       const validacaoBloo = await validarE2ENaBloo(
         resultadoOCR.e2e,
         resultadoOCR.textoCru
-);
+      );
 
       resultadoBloo = validacaoBloo.validacao;
       resumoBloo = validacaoBloo.resumo;
@@ -217,6 +219,13 @@ async function rodarBenchmark() {
         });
 
         console.log(`  [BLOO ERRO] Status: ${resultadoBloo.status}`);
+      }
+
+      const orderSummary = formatarOrderSummaryTerminal(resumoBloo);
+
+      if (orderSummary) {
+        console.log("");
+        console.log(orderSummary);
       }
     } else {
       totalE2ENaoEncontradosPorImagem++;
